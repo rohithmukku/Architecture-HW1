@@ -8,13 +8,30 @@
 #include <iostream>
 #include <fstream>
 
+ofstream OutFile;
 /* ================================================================== */
 // Global variables 
 /* ================================================================== */
 
-UINT64 insCount = 0;        //number of dynamically executed instructions
-UINT64 bblCount = 0;        //number of dynamically executed basic blocks
-UINT64 threadCount = 0;     //total number of threads, including main thread
+UINT64 insCount = 0;                    //number of dynamically executed instructions
+UINT64 bblCount = 0;                    //number of dynamically executed basic blocks
+UINT64 threadCount = 0;                 //total number of threads, including main thread
+static UINT64 nopcount = 0;             //total number of NOP Instructions
+static UINT64 direct_call_count = 0;    //total number of Direct Call Instructions
+static UINT64 indirect_call_count = 0;  //total number of Indirect Call Instructions
+static UINT64 return_count = 0;         //total number of Indirect Call Instructions
+static UINT64 unconditional_count = 0;  //total number of Indirect Call Instructions
+static UINT64 conditional_count = 0;    //total number of Indirect Call Instructions
+static UINT64 logical_count = 0;        //total number of Indirect Call Instructions
+static UINT64 rotate_shift_count = 0;   //total number of Indirect Call Instructions
+static UINT64 flag_call_count = 0;      //total number of Indirect Call Instructions
+static UINT64 vector_count = 0;         //total number of Indirect Call Instructions
+static UINT64 moves_count = 0;          //total number of Indirect Call Instructions
+static UINT64 mmx_sse_count = 0;        //total number of Indirect Call Instructions
+static UINT64 system_call_count = 0;    //total number of Indirect Call Instructions
+static UINT64 fp_count = 0;             //total number of Indirect Call Instructions
+static UINT64 other_count = 0;          //total number of Indirect Call Instructions
+
 
 std::ostream * out = &cerr;
 
@@ -98,6 +115,131 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
     threadCount++;
 }
 
+VOID NOP_count()
+{
+    nopcount++;
+}
+
+VOID DIRECT_CALL_count()
+{
+    direct_call_count++;
+}
+
+VOID INDIRECT_CALL_count()
+{
+    indirect_call_count++;
+}
+
+VOID RETURN_count()
+{
+    return_count++;
+}
+
+VOID UNCONDITIONAL_count()
+{
+    unconditional_count++;
+}
+
+VOID CONDITIONAL_count()
+{
+    conditional_count++;
+}
+
+VOID LOGICAL_count()
+{
+    logical_count++;
+}
+
+VOID ROTATE_SHIFT_count()
+{
+    rotate_shift_count++;
+}
+
+VOID FLAG_CALL_count()
+{
+    flag_call_count++;
+}
+
+VOID VECTOR_count()
+{
+    vector_count++;
+}
+
+VOID MOVES_count()
+{
+    moves_count++;
+}
+
+VOID MMX_SSE_count()
+{
+    mmx_sse_count++;
+}
+
+VOID SYSTEM_CALL_count()
+{
+    system_call_count++;
+}
+
+VOID FP_count()
+{
+    fp_count++;
+}
+
+VOID OTHER_count()
+{
+    other_count++;
+}
+
+VOID Instructions(INS ins, VOID *v)
+{
+    if (INS_Category(ins) == XED_CATEGORY_NOP){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)NOP_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_CALL){
+        if(INS_IsDirectCall(ins)){
+            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DIRECT_CALL_count, IARG_END);
+        }
+        else{
+            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)INDIRECT_CALL_count, IARG_END);
+        }
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_RET){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)UNCONDITIONAL_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_UNCOND_BR){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)UNCONDITIONAL_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_COND_BR){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)CONDITIONAL_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_LOGICAL){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)LOGICAL_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_ROTATE || INS_Category(ins) == XED_CATEGORY_SHIFT){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)ROTATE_SHIFT_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_FLAGOP){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)FLAG_CALL_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_AVX || INS_Category(ins) == XED_CATEGORY_AVX2 || INS_Category(ins) == XED_CATEGORY_AVX2GATHER){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)VECTOR_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_CMOV){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)MOVES_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_MMX || INS_Category(ins) == XED_CATEGORY_SSE){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)MMX_SSE_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_SYSCALL){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)SYSTEM_CALL_count, IARG_END);
+    }
+    else if (INS_Category(ins) == XED_CATEGORY_X87_ALU){
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)FP_count, IARG_END);
+    }
+    else{
+        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)OTHER_count, IARG_END);
+    }
+}
 /*!
  * Print out analysis results.
  * This function is called when the application exits.
@@ -107,12 +249,29 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
  */
 VOID Fini(INT32 code, VOID *v)
 {
-    *out <<  "===============================================" << endl;
-    *out <<  "MyPinTool analysis results: " << endl;
-    *out <<  "Number of instructions: " << insCount  << endl;
-    *out <<  "Number of basic blocks: " << bblCount  << endl;
-    *out <<  "Number of threads: " << threadCount  << endl;
-    *out <<  "===============================================" << endl;
+    OutFile.setf(ios::showbase);
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "MyPinTool analysis results: " << endl;
+    OutFile <<  "Number of instructions: " << insCount  << endl;
+    OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
+    OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
+    OutFile <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
+    OutFile <<  "Number of Return Call Instructions: " << return_count << endl;
+    OutFile <<  "Number of Unconditional Branch Instructions: " << unconditional_count << endl;
+    OutFile <<  "Number of Conditional Branch Instructions: " << conditional_count << endl;
+    OutFile <<  "Number of Logical Instructions: " << logical_count << endl;
+    OutFile <<  "Number of Rotate and Shift Instructions: " << rotate_shift_count << endl;
+    OutFile <<  "Number of Flag Instructions: " << flag_call_count << endl;
+    OutFile <<  "Number of Vector Instructions: " << vector_count << endl;
+    OutFile <<  "Number of Conditional move Instructions: " << moves_count << endl;
+    OutFile <<  "Number of MMX and SSE Instructions: " << mmx_sse_count << endl;
+    OutFile <<  "Number of System Call Instructions: " << system_call_count << endl;
+    OutFile <<  "Number of Floating point Instructions: " << fp_count << endl;
+    OutFile <<  "Number of Other Instructions: " << other_count << endl;
+    OutFile <<  "Number of basic blocks: " << bblCount  << endl;
+    OutFile <<  "Number of threads: " << threadCount  << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile.close();
 }
 
 /*!
@@ -133,10 +292,14 @@ int main(int argc, char *argv[])
     
     string fileName = KnobOutputFile.Value();
 
-    if (!fileName.empty()) { out = new std::ofstream(fileName.c_str());}
+    if (!fileName.empty()) { 
+        //out = new std::ofstream(fileName.c_str());
+        OutFile.open(KnobOutputFile.Value().c_str());
+    }
 
     if (KnobCount)
     {
+        INS_AddInstrumentFunction(Instructions, 0);
         // Register function to be called to instrument traces
         TRACE_AddInstrumentFunction(Trace, 0);
 
