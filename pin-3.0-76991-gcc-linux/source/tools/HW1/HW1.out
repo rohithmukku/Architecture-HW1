@@ -1,21 +1,26 @@
 ===============================================
 MyPinTool analysis results: 
-Number of instructions: 401531
-Number of NOP Instructions: 145
-Number of Direct Call Instructions: 3695
+Number of instructions: 401157
+Number of NOP Instructions: 143
+Number of Direct Call Instructions: 3687
 Number of Indirect Call Instructions: 136
 Number of Return Call Instructions: 0
-Number of Unconditional Branch Instructions: 7994
-Number of Conditional Branch Instructions: 76248
-Number of Logical Instructions: 50757
+Number of Unconditional Branch Instructions: 7978
+Number of Conditional Branch Instructions: 76188
+Number of Logical Instructions: 50735
 Number of Rotate and Shift Instructions: 8480
 Number of Flag Instructions: 0
 Number of Vector Instructions: 0
-Number of Conditional move Instructions: 401
-Number of MMX and SSE Instructions: 1559
+Number of Conditional move Instructions: 402
+Number of MMX and SSE Instructions: 1555
 Number of System Call Instructions: 100
 Number of Floating point Instructions: 0
-Number of Other Instructions: 251098
-Number of basic blocks: 94525
+Number of Other Instructions: 250836
+Number of Read Operations: 161924
+Number of Write Operations: 161924
+Total number of Instructions: 724088
+Number of Cycles executed: 16592640
+CPI: 22
+Number of basic blocks: 94441
 Number of threads: 1
 ===============================================

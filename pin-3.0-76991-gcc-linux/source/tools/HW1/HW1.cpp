@@ -16,21 +16,25 @@ ofstream OutFile;
 UINT64 insCount = 0;                    //number of dynamically executed instructions
 UINT64 bblCount = 0;                    //number of dynamically executed basic blocks
 UINT64 threadCount = 0;                 //total number of threads, including main thread
+static UINT64 icount = 0;               //total number of Instructions
 static UINT64 nopcount = 0;             //total number of NOP Instructions
 static UINT64 direct_call_count = 0;    //total number of Direct Call Instructions
 static UINT64 indirect_call_count = 0;  //total number of Indirect Call Instructions
-static UINT64 return_count = 0;         //total number of Indirect Call Instructions
-static UINT64 unconditional_count = 0;  //total number of Indirect Call Instructions
-static UINT64 conditional_count = 0;    //total number of Indirect Call Instructions
-static UINT64 logical_count = 0;        //total number of Indirect Call Instructions
-static UINT64 rotate_shift_count = 0;   //total number of Indirect Call Instructions
-static UINT64 flag_call_count = 0;      //total number of Indirect Call Instructions
-static UINT64 vector_count = 0;         //total number of Indirect Call Instructions
-static UINT64 moves_count = 0;          //total number of Indirect Call Instructions
-static UINT64 mmx_sse_count = 0;        //total number of Indirect Call Instructions
-static UINT64 system_call_count = 0;    //total number of Indirect Call Instructions
-static UINT64 fp_count = 0;             //total number of Indirect Call Instructions
-static UINT64 other_count = 0;          //total number of Indirect Call Instructions
+static UINT64 return_count = 0;         //total number of Return Call Instructions
+static UINT64 unconditional_count = 0;  //total number of Unconditional Branch Instructions
+static UINT64 conditional_count = 0;    //total number of Conditional Branch Instructions
+static UINT64 logical_count = 0;        //total number of Logical Operations
+static UINT64 rotate_shift_count = 0;   //total number of Rotate & Shift Instructions
+static UINT64 flag_call_count = 0;      //total number of Flag Operations
+static UINT64 vector_count = 0;         //total number of Vector Instructions
+static UINT64 moves_count = 0;          //total number of Conditional Moves
+static UINT64 mmx_sse_count = 0;        //total number of MMX & SSE Instructions
+static UINT64 system_call_count = 0;    //total number of System Call Instructions
+static UINT64 fp_count = 0;             //total number of Floating point Instructions
+static UINT64 other_count = 0;          //total number of Other Instructions
+static UINT64 read_count = 0;           //total number of Read operations
+static UINT64 write_count = 0;          //total number of Write operations
+static UINT64 latency = 0;              //total number of cycles executed
 
 
 std::ostream * out = &cerr;
@@ -118,80 +122,139 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 VOID NOP_count()
 {
     nopcount++;
+    icount++;
+    latency++;
 }
 
 VOID DIRECT_CALL_count()
 {
     direct_call_count++;
+    icount++;
+    latency++;
 }
 
 VOID INDIRECT_CALL_count()
 {
     indirect_call_count++;
+    icount++;
+    latency++;
 }
 
 VOID RETURN_count()
 {
     return_count++;
+    icount++;
+    latency++;
 }
 
 VOID UNCONDITIONAL_count()
 {
     unconditional_count++;
+    icount++;
+    latency++;
 }
 
 VOID CONDITIONAL_count()
 {
     conditional_count++;
+    icount++;
+    latency++;
 }
 
 VOID LOGICAL_count()
 {
     logical_count++;
+    icount++;
+    latency++;
 }
 
 VOID ROTATE_SHIFT_count()
 {
     rotate_shift_count++;
+    icount++;
+    latency++;
 }
 
 VOID FLAG_CALL_count()
 {
     flag_call_count++;
+    icount++;
+    latency++;
 }
 
 VOID VECTOR_count()
 {
     vector_count++;
+    icount++;
+    latency++;
 }
 
 VOID MOVES_count()
 {
     moves_count++;
+    icount++;
+    latency++;
 }
 
 VOID MMX_SSE_count()
 {
     mmx_sse_count++;
+    icount++;
+    latency++;
 }
 
 VOID SYSTEM_CALL_count()
 {
     system_call_count++;
+    icount++;
+    latency++;
 }
 
 VOID FP_count()
 {
     fp_count++;
+    icount++;
+    latency++;
 }
 
 VOID OTHER_count()
 {
     other_count++;
+    icount++;
+    latency++;
+}
+
+VOID RecordMemRead(UINT32 c){
+    read_count += c;
+    icount += c;
+    latency += c*50;
+}
+
+VOID RecordMemWrite(UINT32 c){
+    write_count += c;
+    icount += c;
+    latency += c*50;
 }
 
 VOID Instructions(INS ins, VOID *v)
 {
+    UINT32 memOperands = INS_MemoryOperandCount(ins);
+    for(UINT32 memOp = 0; memOp < memOperands; memOp++){
+        if (INS_MemoryOperandIsRead(ins, memOp)){
+            UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
+            UINT32 accesses;
+            if (refSize%4 == 0) accesses = refSize/4;
+            else accesses = refSize/4+1;
+            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemRead, IARG_UINT32, accesses, IARG_END);
+        }
+        if (INS_MemoryOperandIsRead(ins, memOp)){
+            UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
+            UINT32 accesses;
+            if (refSize%4 == 0) accesses = refSize/4;
+            else accesses = refSize/4+1;
+            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
+        }
+    }
     if (INS_Category(ins) == XED_CATEGORY_NOP){
         INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)NOP_count, IARG_END);
     }
@@ -268,6 +331,11 @@ VOID Fini(INT32 code, VOID *v)
     OutFile <<  "Number of System Call Instructions: " << system_call_count << endl;
     OutFile <<  "Number of Floating point Instructions: " << fp_count << endl;
     OutFile <<  "Number of Other Instructions: " << other_count << endl;
+    OutFile <<  "Number of Read Operations: " << read_count << endl;
+    OutFile <<  "Number of Write Operations: " << write_count << endl;
+    OutFile <<  "Total number of Instructions: " << icount << endl;
+    OutFile <<  "Number of Cycles executed: " << latency << endl;
+    OutFile <<  "CPI: " << latency/icount << endl;
     OutFile <<  "Number of basic blocks: " << bblCount  << endl;
     OutFile <<  "Number of threads: " << threadCount  << endl;
     OutFile <<  "===============================================" << endl;
