@@ -7,12 +7,14 @@
 #include "pin.H"
 #include <iostream>
 #include <fstream>
+#include <set>
 
 ofstream OutFile;
 /* ================================================================== */
 // Global variables 
 /* ================================================================== */
 
+UINT64 fast_forward_count = 501157;     //fast forward count
 UINT64 insCount = 0;                    //number of dynamically executed instructions
 UINT64 bblCount = 0;                    //number of dynamically executed basic blocks
 UINT64 threadCount = 0;                 //total number of threads, including main thread
@@ -35,7 +37,8 @@ static UINT64 other_count = 0;          //total number of Other Instructions
 static UINT64 read_count = 0;           //total number of Read operations
 static UINT64 write_count = 0;          //total number of Write operations
 static UINT64 latency = 0;              //total number of cycles executed
-
+std::set <ADDRINT> insAddresses;        //list of Instruction Addresses accessed
+std::set <ADDRINT> dataAddresses;       //list of Data Addresses accessed
 
 std::ostream * out = &cerr;
 
@@ -119,188 +122,211 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
     threadCount++;
 }
 
+ADDRINT FastForward(void) {
+    return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
+}
+
+VOID INS_count(){
+    icount++;
+}
+
 VOID NOP_count()
 {
     nopcount++;
-    icount++;
     latency++;
 }
 
 VOID DIRECT_CALL_count()
 {
     direct_call_count++;
-    icount++;
     latency++;
 }
 
 VOID INDIRECT_CALL_count()
 {
     indirect_call_count++;
-    icount++;
     latency++;
 }
 
 VOID RETURN_count()
 {
     return_count++;
-    icount++;
     latency++;
 }
 
 VOID UNCONDITIONAL_count()
 {
     unconditional_count++;
-    icount++;
     latency++;
 }
 
 VOID CONDITIONAL_count()
 {
     conditional_count++;
-    icount++;
     latency++;
 }
 
 VOID LOGICAL_count()
 {
     logical_count++;
-    icount++;
     latency++;
 }
 
 VOID ROTATE_SHIFT_count()
 {
     rotate_shift_count++;
-    icount++;
     latency++;
 }
 
 VOID FLAG_CALL_count()
 {
     flag_call_count++;
-    icount++;
     latency++;
 }
 
 VOID VECTOR_count()
 {
     vector_count++;
-    icount++;
     latency++;
 }
 
 VOID MOVES_count()
 {
     moves_count++;
-    icount++;
     latency++;
 }
 
 VOID MMX_SSE_count()
 {
     mmx_sse_count++;
-    icount++;
     latency++;
 }
 
 VOID SYSTEM_CALL_count()
 {
     system_call_count++;
-    icount++;
     latency++;
 }
 
 VOID FP_count()
 {
     fp_count++;
-    icount++;
     latency++;
 }
 
 VOID OTHER_count()
 {
     other_count++;
-    icount++;
     latency++;
 }
 
 VOID RecordMemRead(UINT32 c){
     read_count += c;
-    icount += c;
     latency += c*50;
 }
 
 VOID RecordMemWrite(UINT32 c){
     write_count += c;
-    icount += c;
     latency += c*50;
+}
+
+VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
+    insAddresses.insert(addr);
+    if (ins_chunks == 2) insAddresses.insert(addr+32);
+}
+
+VOID DataFootprint(VOID *addr, UINT32 refSize){
+    UINT32 dataAddress = *((UINT32*)(&addr));
+    UINT32 data_chunks = ((dataAddress)/32)==((dataAddress+refSize)/32)?1:2;
+    dataAddresses.insert(dataAddress);
+    if(data_chunks == 2) dataAddresses.insert(dataAddress+32);
 }
 
 VOID Instructions(INS ins, VOID *v)
 {
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)INS_count, IARG_END);
     UINT32 memOperands = INS_MemoryOperandCount(ins);
+    UINT32 insSize = INS_Size(ins);
+    UINT32 insAddress = INS_Address(ins);
+    UINT32 ins_chunks = (insAddress/32)==((insAddress+insSize)/32)?1:2;
+    insAddress = (insAddress/32)*32;
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT32, insAddress, IARG_UINT32, ins_chunks, IARG_END);
     for(UINT32 memOp = 0; memOp < memOperands; memOp++){
+        UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
+        UINT32 accesses;
+        if (refSize%4 == 0) accesses = refSize/4;
+        else accesses = refSize/4+1;
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
         if (INS_MemoryOperandIsRead(ins, memOp)){
-            UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
-            UINT32 accesses;
-            if (refSize%4 == 0) accesses = refSize/4;
-            else accesses = refSize/4+1;
-            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemRead, IARG_UINT32, accesses, IARG_END);
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+            INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemRead, IARG_UINT32, accesses, IARG_END);
         }
         if (INS_MemoryOperandIsRead(ins, memOp)){
-            UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
-            UINT32 accesses;
-            if (refSize%4 == 0) accesses = refSize/4;
-            else accesses = refSize/4+1;
-            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+            INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
         }
     }
     if (INS_Category(ins) == XED_CATEGORY_NOP){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)NOP_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)NOP_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_CALL){
         if(INS_IsDirectCall(ins)){
-            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DIRECT_CALL_count, IARG_END);
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+            INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DIRECT_CALL_count, IARG_END);
         }
         else{
-            INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)INDIRECT_CALL_count, IARG_END);
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+            INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)INDIRECT_CALL_count, IARG_END);
         }
     }
     else if (INS_Category(ins) == XED_CATEGORY_RET){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)UNCONDITIONAL_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)UNCONDITIONAL_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_UNCOND_BR){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)UNCONDITIONAL_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)UNCONDITIONAL_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_COND_BR){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)CONDITIONAL_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)CONDITIONAL_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_LOGICAL){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)LOGICAL_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)LOGICAL_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_ROTATE || INS_Category(ins) == XED_CATEGORY_SHIFT){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)ROTATE_SHIFT_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)ROTATE_SHIFT_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_FLAGOP){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)FLAG_CALL_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)FLAG_CALL_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_AVX || INS_Category(ins) == XED_CATEGORY_AVX2 || INS_Category(ins) == XED_CATEGORY_AVX2GATHER){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)VECTOR_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)VECTOR_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_CMOV){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)MOVES_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)MOVES_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_MMX || INS_Category(ins) == XED_CATEGORY_SSE){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)MMX_SSE_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)MMX_SSE_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_SYSCALL){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)SYSTEM_CALL_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)SYSTEM_CALL_count, IARG_END);
     }
     else if (INS_Category(ins) == XED_CATEGORY_X87_ALU){
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)FP_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)FP_count, IARG_END);
     }
     else{
-        INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)OTHER_count, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)OTHER_count, IARG_END);
     }
 }
 /*!
@@ -315,7 +341,7 @@ VOID Fini(INT32 code, VOID *v)
     OutFile.setf(ios::showbase);
     OutFile <<  "===============================================" << endl;
     OutFile <<  "MyPinTool analysis results: " << endl;
-    OutFile <<  "Number of instructions: " << insCount  << endl;
+    OutFile <<  "Number of instructions: " << icount  << endl;
     OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
     OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
     OutFile <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
@@ -336,6 +362,9 @@ VOID Fini(INT32 code, VOID *v)
     OutFile <<  "Total number of Instructions: " << icount << endl;
     OutFile <<  "Number of Cycles executed: " << latency << endl;
     OutFile <<  "CPI: " << latency/icount << endl;
+    OutFile <<  "Instruction Footprint: " << insAddresses.size() << endl;
+    OutFile <<  "Data Footprint: " << dataAddresses.size() << endl;
+    OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
     OutFile <<  "Number of basic blocks: " << bblCount  << endl;
     OutFile <<  "Number of threads: " << threadCount  << endl;
     OutFile <<  "===============================================" << endl;
