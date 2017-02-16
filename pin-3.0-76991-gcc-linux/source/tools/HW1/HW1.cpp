@@ -106,6 +106,56 @@ INT32 Usage()
  * @param[in]   numInstInBbl    number of instructions in the basic block
  * @note use atomic operations for multi-threaded applications
  */
+
+ADDRINT Terminate(void)
+{
+    return (icount >= fast_forward_count + 1000000000);
+}
+void MyExitRoutine(...) {
+    OutFile.setf(ios::showbase);
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "MyPinTool analysis results: " << endl;
+    OutFile <<  "Part-A: " << endl;
+    OutFile <<  "Number of instructions: " << icount  << endl;
+    OutFile <<  "Number of instructions executed: " << executed_ins  << endl;
+    OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
+    OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
+    OutFile <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
+    OutFile <<  "Number of Return Call Instructions: " << return_count << endl;
+    OutFile <<  "Number of Unconditional Branch Instructions: " << unconditional_count << endl;
+    OutFile <<  "Number of Conditional Branch Instructions: " << conditional_count << endl;
+    OutFile <<  "Number of Logical Instructions: " << logical_count << endl;
+    OutFile <<  "Number of Rotate and Shift Instructions: " << rotate_shift_count << endl;
+    OutFile <<  "Number of Flag Instructions: " << flag_call_count << endl;
+    OutFile <<  "Number of Vector Instructions: " << vector_count << endl;
+    OutFile <<  "Number of Conditional move Instructions: " << moves_count << endl;
+    OutFile <<  "Number of MMX and SSE Instructions: " << mmx_sse_count << endl;
+    OutFile <<  "Number of System Call Instructions: " << system_call_count << endl;
+    OutFile <<  "Number of Floating point Instructions: " << fp_count << endl;
+    OutFile <<  "Number of Other Instructions: " << other_count << endl;
+    OutFile <<  "Number of Read Operations: " << read_count << endl;
+    OutFile <<  "Number of Write Operations: " << write_count << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Part-B: " << endl;
+    OutFile <<  "Number of Cycles executed: " << latency << endl;
+    OutFile <<  "CPI: " << (float)latency/icount << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Part-C: " << endl;
+    OutFile <<  "Instruction Footprint: " << insAddresses.size() << endl;
+    OutFile <<  "Data Footprint: " << dataAddresses.size() << endl;
+    OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Part-D: " << endl;
+    OutFile <<  "Distribution of instruction length 1: " << insArray[0] << endl;
+    OutFile <<  "Distribution of instruction length 0: " << Operands[0] << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Number of basic blocks: " << bblCount  << endl;
+    OutFile <<  "Number of threads: " << threadCount  << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile.close();
+    exit(0);
+}
+
 VOID CountBbl(UINT32 numInstInBbl)
 {
     bblCount++;
@@ -134,16 +184,6 @@ VOID Trace(TRACE trace, VOID *v)
     }
 }
 
-/*!
- * Increase counter of threads in the application.
- * This function is called for every thread created by the application when it is
- * about to start running (including the root thread).
- * @param[in]   threadIndex     ID assigned by PIN to the new thread
- * @param[in]   ctxt            initial register state for the new thread
- * @param[in]   flags           thread creation flags (OS specific)
- * @param[in]   v               value specified by the tool in the 
- *                              PIN_AddThreadStartFunction function call
- */
 VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
     threadCount++;
@@ -299,16 +339,38 @@ VOID RecordMemWrite(UINT32 c){
     latency += c*50;
 }
 
-VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
-    insAddresses.insert(addr);
-    if (ins_chunks == 2) insAddresses.insert(addr+32);
+VOID Operand_Size(UINT32 value){
+    if(value > maxImmediate) maxImmediate = value;
+    else if(value < minImmediate) minImmediate = value;
+}
+VOID Memory_Displacement_Size(UINT32 value){
+    if (value > maxDisplacement) maxDisplacement = value;
+    else if (value < minDisplacement) minDisplacement = value;
 }
 
-VOID DataFootprint(VOID *addr, UINT32 refSize){
+VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
+    for(UINT32 i =0 ; i<ins_chunks;i++)
+    {
+        insAddresses.insert(addr);
+        addr = addr + 32;
+    }
+}
+
+VOID DataFootprint(void *addr, UINT32 refSize){
     UINT32 dataAddress = *((UINT32*)(&addr));
-    UINT32 data_chunks = ((dataAddress)/32)==((dataAddress+refSize)/32)?1:2;
-    dataAddresses.insert(dataAddress);
-    if(data_chunks == 2) dataAddresses.insert(dataAddress+32);
+    UINT32 dataAddress_end  = dataAddress + (refSize * 8);
+    UINT32 currAddr = (dataAddress/32)*32;
+    UINT32 data_chunks = 0;
+    while(currAddr <= dataAddress_end){
+        data_chunks++ ;
+        currAddr = currAddr + 32;
+    }
+    dataAddress = (dataAddress/32)*32;
+    for(UINT32 i =0 ; i<data_chunks;i++)
+    {
+        dataAddresses.insert(dataAddress);
+        dataAddress = dataAddress + 32;
+    }
 }
 
 VOID Operand_Size(UINT32 value){
@@ -323,15 +385,33 @@ VOID Memory_Displacement_Size(UINT32 value){
 
 VOID Instructions(INS ins, VOID *v)
 {
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) Terminate, IARG_END);
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
     UINT32 memReadCount = 0;
     UINT32 memWriteCount = 0;
     UINT32 memOperands = INS_MemoryOperandCount(ins);
     UINT32 opSize = INS_OperandCount(ins);
     UINT32 readSize = INS_MaxNumRRegs(ins);
     UINT32 writeSize = INS_MaxNumWRegs(ins);
+    
+    UINT32 operandCount = INS_OperandCount(ins);
+    for (UINT32 op = 0; op < operandCount; op++){
+        if (INS_OperandIsImmediate(ins, op)){
+            ADDRINT immediateValue = INS_OperandImmediate(ins, op);
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+            INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)Operand_Size, IARG_ADDRINT, immediateValue,  IARG_END);        
+        }
+    }
+
     UINT32 insSize = INS_Size(ins);
     UINT32 insAddress = INS_Address(ins);
-    UINT32 ins_chunks = (insAddress/32)==((insAddress+insSize)/32)?1:2;
+    UINT32 insAddress_end  = insAddress + (insSize * 8);
+    UINT32 currAddr = (insAddress/32)*32;
+    UINT32 ins_chunks = 0;
+    while(currAddr <= insAddress_end){
+        ins_chunks++ ;
+        currAddr = currAddr + 32;
+    }
     insAddress = (insAddress/32)*32;
     
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
@@ -353,16 +433,19 @@ VOID Instructions(INS ins, VOID *v)
     
     for (UINT32 memOp = 0; memOp < memOperands; memOp++){
         UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
+
         UINT32 accesses;
         if (refSize%4 == 0) accesses = refSize/4;
         else accesses = refSize/4+1;
+
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
+        
         if (INS_MemoryOperandIsRead(ins, memOp)){
             memReadCount++;
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemRead, IARG_UINT32, accesses, IARG_END);
         }
-        if (INS_MemoryOperandIsRead(ins, memOp)){
+        if (INS_MemoryOperandIsWritten(ins, memOp)){
             memWriteCount++;
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
@@ -373,6 +456,7 @@ VOID Instructions(INS ins, VOID *v)
     }
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DynamicAnalysis, IARG_UINT32, memOperands, IARG_UINT32, memReadCount, IARG_UINT32, memWriteCount, IARG_END);
+    
     if (INS_Category(ins) == XED_CATEGORY_NOP){
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)NOP_count, IARG_END);
@@ -435,58 +519,12 @@ VOID Instructions(INS ins, VOID *v)
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)OTHER_count, IARG_END);
     }
+    INS_InsertThenCall(ins, IPOINT_BEFORE,(AFUNPTR) MyExitRoutine, IARG_END);
 }
-/*!
- * Print out analysis results.
- * This function is called when the application exits.
- * @param[in]   code            exit code of the application
- * @param[in]   v               value specified by the tool in the 
- *                              PIN_AddFiniFunction function call
- */
+
 VOID Fini(INT32 code, VOID *v)
 {
-    OutFile.setf(ios::showbase);
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "MyPinTool analysis results: " << endl;
-    OutFile <<  "Part-A: " << endl;
-    OutFile <<  "Number of instructions: " << icount  << endl;
-    OutFile <<  "Number of instructions executed: " << executed_ins  << endl;
-    OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
-    OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
-    OutFile <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
-    OutFile <<  "Number of Return Call Instructions: " << return_count << endl;
-    OutFile <<  "Number of Unconditional Branch Instructions: " << unconditional_count << endl;
-    OutFile <<  "Number of Conditional Branch Instructions: " << conditional_count << endl;
-    OutFile <<  "Number of Logical Instructions: " << logical_count << endl;
-    OutFile <<  "Number of Rotate and Shift Instructions: " << rotate_shift_count << endl;
-    OutFile <<  "Number of Flag Instructions: " << flag_call_count << endl;
-    OutFile <<  "Number of Vector Instructions: " << vector_count << endl;
-    OutFile <<  "Number of Conditional move Instructions: " << moves_count << endl;
-    OutFile <<  "Number of MMX and SSE Instructions: " << mmx_sse_count << endl;
-    OutFile <<  "Number of System Call Instructions: " << system_call_count << endl;
-    OutFile <<  "Number of Floating point Instructions: " << fp_count << endl;
-    OutFile <<  "Number of Other Instructions: " << other_count << endl;
-    OutFile <<  "Number of Read Operations: " << read_count << endl;
-    OutFile <<  "Number of Write Operations: " << write_count << endl;
-    OutFile <<  "Total number of Instructions: " << icount << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Part-B: " << endl;
-    OutFile <<  "Number of Cycles executed: " << latency << endl;
-    OutFile <<  "CPI: " << (float)latency/icount << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Part-C: " << endl;
-    OutFile <<  "Instruction Footprint: " << insAddresses.size() << endl;
-    OutFile <<  "Data Footprint: " << dataAddresses.size() << endl;
-    OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Part-D: " << endl;
-    OutFile <<  "Distribution of instruction length 1: " << insArray[0] << endl;
-    OutFile <<  "Distribution of instruction length 0: " << Operands[0] << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Number of basic blocks: " << bblCount  << endl;
-    OutFile <<  "Number of threads: " << threadCount  << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile.close();
+    
 }
 
 /*!
@@ -538,7 +576,3 @@ int main(int argc, char *argv[])
     
     return 0;
 }
-
-/* ===================================================================== */
-/* eof */
-/* ===================================================================== */
