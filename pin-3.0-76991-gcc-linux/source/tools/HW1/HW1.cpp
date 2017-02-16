@@ -61,6 +61,9 @@ static UINT64 maxMem = 0;
 static UINT64 maxMemRead = 0;
 static UINT64 maxMemWrite = 0;
 
+static ADDRINT maxImmediate = 0;
+static ADDRINT minImmediate = 0;
+
 std::ostream * out = &cerr;
 
 /* ===================================================================== */
@@ -305,6 +308,11 @@ VOID DataFootprint(VOID *addr, UINT32 refSize){
     if(data_chunks == 2) dataAddresses.insert(dataAddress+32);
 }
 
+VOID Operand_Size(UINT32 value){
+    if(value > maxImmediate) maxImmediate = value;
+    else if(value < minImmediate) minImmediate = value;
+}
+
 VOID Instructions(INS ins, VOID *v)
 {
     UINT32 memReadCount = 0;
@@ -317,14 +325,25 @@ VOID Instructions(INS ins, VOID *v)
     UINT32 insAddress = INS_Address(ins);
     UINT32 ins_chunks = (insAddress/32)==((insAddress+insSize)/32)?1:2;
     insAddress = (insAddress/32)*32;
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
     
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
+
+    UINT32 operandCount = INS_OperandCount(ins);
+    for (UINT32 op = 0; op < operandCount; op++){
+        if (INS_OperandIsImmediate(ins, op)){
+            ADDRINT immediateValue = INS_OperandImmediate(ins, op);
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+            INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)Operand_Size, IARG_ADDRINT, immediateValue,  IARG_END);        
+        }
+    }
+
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT32, insAddress, IARG_UINT32, ins_chunks, IARG_END);
     
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)StaticAnalysis, IARG_UINT32, insSize, IARG_UINT32, opSize, IARG_UINT32, readSize, IARG_UINT32, writeSize, IARG_END); 
-    for(UINT32 memOp = 0; memOp < memOperands; memOp++){
+    
+    for (UINT32 memOp = 0; memOp < memOperands; memOp++){
         UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
         UINT32 accesses;
         if (refSize%4 == 0) accesses = refSize/4;
