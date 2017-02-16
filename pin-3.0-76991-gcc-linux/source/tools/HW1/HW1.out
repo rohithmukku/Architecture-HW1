@@ -1,29 +1,40 @@
 ===============================================
 MyPinTool analysis results: 
-Number of instructions: 406462
-Number of NOP Instructions: 0
-Number of Direct Call Instructions: 0
-Number of Indirect Call Instructions: 0
+Part-A: 
+Number of instructions: 406088
+Number of instructions executed: 732854
+Number of NOP Instructions: 145
+Number of Direct Call Instructions: 3746
+Number of Indirect Call Instructions: 140
 Number of Return Call Instructions: 0
-Number of Unconditional Branch Instructions: 0
-Number of Conditional Branch Instructions: 0
-Number of Logical Instructions: 0
-Number of Rotate and Shift Instructions: 0
+Number of Unconditional Branch Instructions: 8194
+Number of Conditional Branch Instructions: 76928
+Number of Logical Instructions: 51188
+Number of Rotate and Shift Instructions: 8512
 Number of Flag Instructions: 0
 Number of Vector Instructions: 0
-Number of Conditional move Instructions: 0
-Number of MMX and SSE Instructions: 0
-Number of System Call Instructions: 0
+Number of Conditional move Instructions: 406
+Number of MMX and SSE Instructions: 1571
+Number of System Call Instructions: 100
 Number of Floating point Instructions: 0
-Number of Other Instructions: 0
-Number of Read Operations: 0
-Number of Write Operations: 0
-Total number of Instructions: 406462
-Number of Cycles executed: 0
-CPI: 0
+Number of Other Instructions: 254234
+Number of Read Operations: 163845
+Number of Write Operations: 163845
+Total number of Instructions: 406088
+===============================================
+Part-B: 
+Number of Cycles executed: 16789664
+CPI: 41.3449
+===============================================
+Part-C: 
 Instruction Footprint: 2383
 Data Footprint: 11100
 Memory Footprint: 13483
-Number of basic blocks: 95607
+===============================================
+Part-D: 
+Distribution of instruction length 1: 11285
+Distribution of instruction length 0: 145
+===============================================
+Number of basic blocks: 95523
 Number of threads: 1
 ===============================================

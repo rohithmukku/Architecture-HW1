@@ -8,13 +8,16 @@
 #include <iostream>
 #include <fstream>
 #include <set>
+#include <vector>
+
+using namespace std;
 
 ofstream OutFile;
 /* ================================================================== */
 // Global variables 
 /* ================================================================== */
 
-UINT64 fast_forward_count = 501157;     //fast forward count
+UINT64 fast_forward_count = 0;     //fast forward count
 UINT64 insCount = 0;                    //number of dynamically executed instructions
 UINT64 bblCount = 0;                    //number of dynamically executed basic blocks
 UINT64 threadCount = 0;                 //total number of threads, including main thread
@@ -37,8 +40,26 @@ static UINT64 other_count = 0;          //total number of Other Instructions
 static UINT64 read_count = 0;           //total number of Read operations
 static UINT64 write_count = 0;          //total number of Write operations
 static UINT64 latency = 0;              //total number of cycles executed
+static UINT64 executed_ins = 0;         //total number of cycles executed
+
 std::set <ADDRINT> insAddresses;        //list of Instruction Addresses accessed
 std::set <ADDRINT> dataAddresses;       //list of Data Addresses accessed
+
+static UINT64 insArray[500];
+static UINT64 Operands[6];
+static UINT64 readCount[50];
+static UINT64 writeCount[50];
+static UINT64 maxInsLength = 0;
+static UINT64 maxOpLength = 0;
+static UINT64 maxRead = 0;
+static UINT64 maxWrite = 0;
+
+static UINT64 memSize[6];
+static UINT64 readmemSize[50];
+static UINT64 writememSize[50];
+static UINT64 maxMem = 0;
+static UINT64 maxMemRead = 0;
+static UINT64 maxMemWrite = 0;
 
 std::ostream * out = &cerr;
 
@@ -126,107 +147,149 @@ ADDRINT FastForward(void) {
     return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
 }
 
-VOID INS_count(){
+VOID ins_count(){
     icount++;
+}
+
+VOID StaticAnalysis(UINT32 insSize, UINT32 opSize, UINT32 readSize, UINT32 writeSize){
+    insArray[insSize-1]++;
+    if(insSize > maxInsLength) maxInsLength = insSize;
+    
+    Operands[opSize]++;
+    if(opSize > maxOpLength) maxOpLength = opSize;
+    
+    readCount[readSize]++;
+    if(readSize > maxRead) maxRead = readSize;
+    
+    writeCount[writeSize]++;
+    if(writeSize > maxWrite) maxWrite = writeSize;
+}
+
+VOID DynamicAnalysis(UINT32 memCount, UINT32 memReadCount, UINT32 memWriteCount){
+    memSize[memCount]++;
+    if(memCount > maxMem) maxMem = memCount;
+
+    readmemSize[memReadCount]++;
+    if(memReadCount > maxMemRead) maxMemWrite = memReadCount;
+    
+    writememSize[memWriteCount]++;
+    if(memWriteCount > maxMemWrite) maxMemWrite = memWriteCount;
 }
 
 VOID NOP_count()
 {
     nopcount++;
     latency++;
+    executed_ins++;
 }
 
 VOID DIRECT_CALL_count()
 {
     direct_call_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID INDIRECT_CALL_count()
 {
     indirect_call_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID RETURN_count()
 {
     return_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID UNCONDITIONAL_count()
 {
     unconditional_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID CONDITIONAL_count()
 {
     conditional_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID LOGICAL_count()
 {
     logical_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID ROTATE_SHIFT_count()
 {
     rotate_shift_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID FLAG_CALL_count()
 {
     flag_call_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID VECTOR_count()
 {
     vector_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID MOVES_count()
 {
     moves_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID MMX_SSE_count()
 {
     mmx_sse_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID SYSTEM_CALL_count()
 {
     system_call_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID FP_count()
 {
     fp_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID OTHER_count()
 {
     other_count++;
     latency++;
+    executed_ins++;
 }
 
 VOID RecordMemRead(UINT32 c){
     read_count += c;
+    executed_ins += c;
     latency += c*50;
 }
 
 VOID RecordMemWrite(UINT32 c){
     write_count += c;
+    executed_ins += c;
     latency += c*50;
 }
 
@@ -244,13 +307,23 @@ VOID DataFootprint(VOID *addr, UINT32 refSize){
 
 VOID Instructions(INS ins, VOID *v)
 {
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)INS_count, IARG_END);
+    UINT32 memReadCount = 0;
+    UINT32 memWriteCount = 0;
     UINT32 memOperands = INS_MemoryOperandCount(ins);
+    UINT32 opSize = INS_OperandCount(ins);
+    UINT32 readSize = INS_MaxNumRRegs(ins);
+    UINT32 writeSize = INS_MaxNumWRegs(ins);
     UINT32 insSize = INS_Size(ins);
     UINT32 insAddress = INS_Address(ins);
     UINT32 ins_chunks = (insAddress/32)==((insAddress+insSize)/32)?1:2;
     insAddress = (insAddress/32)*32;
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT32, insAddress, IARG_UINT32, ins_chunks, IARG_END);
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
+    
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT32, insAddress, IARG_UINT32, ins_chunks, IARG_END);
+    
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)StaticAnalysis, IARG_UINT32, insSize, IARG_UINT32, opSize, IARG_UINT32, readSize, IARG_UINT32, writeSize, IARG_END); 
     for(UINT32 memOp = 0; memOp < memOperands; memOp++){
         UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
         UINT32 accesses;
@@ -258,14 +331,18 @@ VOID Instructions(INS ins, VOID *v)
         else accesses = refSize/4+1;
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
         if (INS_MemoryOperandIsRead(ins, memOp)){
+            memReadCount++;
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemRead, IARG_UINT32, accesses, IARG_END);
         }
         if (INS_MemoryOperandIsRead(ins, memOp)){
+            memWriteCount++;
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
         }
     }
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+    INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DynamicAnalysis, IARG_UINT32, memOperands, IARG_UINT32, memReadCount, IARG_UINT32, memWriteCount, IARG_END);
     if (INS_Category(ins) == XED_CATEGORY_NOP){
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)NOP_count, IARG_END);
@@ -341,7 +418,9 @@ VOID Fini(INT32 code, VOID *v)
     OutFile.setf(ios::showbase);
     OutFile <<  "===============================================" << endl;
     OutFile <<  "MyPinTool analysis results: " << endl;
+    OutFile <<  "Part-A: " << endl;
     OutFile <<  "Number of instructions: " << icount  << endl;
+    OutFile <<  "Number of instructions executed: " << executed_ins  << endl;
     OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
     OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
     OutFile <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
@@ -360,11 +439,20 @@ VOID Fini(INT32 code, VOID *v)
     OutFile <<  "Number of Read Operations: " << read_count << endl;
     OutFile <<  "Number of Write Operations: " << write_count << endl;
     OutFile <<  "Total number of Instructions: " << icount << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Part-B: " << endl;
     OutFile <<  "Number of Cycles executed: " << latency << endl;
-    OutFile <<  "CPI: " << latency/icount << endl;
+    OutFile <<  "CPI: " << (float)latency/icount << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Part-C: " << endl;
     OutFile <<  "Instruction Footprint: " << insAddresses.size() << endl;
     OutFile <<  "Data Footprint: " << dataAddresses.size() << endl;
     OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
+    OutFile <<  "===============================================" << endl;
+    OutFile <<  "Part-D: " << endl;
+    OutFile <<  "Distribution of instruction length 1: " << insArray[0] << endl;
+    OutFile <<  "Distribution of instruction length 0: " << Operands[0] << endl;
+    OutFile <<  "===============================================" << endl;
     OutFile <<  "Number of basic blocks: " << bblCount  << endl;
     OutFile <<  "Number of threads: " << threadCount  << endl;
     OutFile <<  "===============================================" << endl;
