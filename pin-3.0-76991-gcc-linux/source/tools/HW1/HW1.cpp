@@ -11,7 +11,6 @@
 #include <vector>
 
 using namespace std;
-
 ofstream OutFile;
 /* ================================================================== */
 // Global variables 
@@ -373,16 +372,6 @@ VOID DataFootprint(void *addr, UINT32 refSize){
     }
 }
 
-VOID Operand_Size(UINT32 value){
-    if (value > maxImmediate) maxImmediate = value;
-    else if (value < minImmediate) minImmediate = value;
-}
-
-VOID Memory_Displacement_Size(UINT32 value){
-    if (value > maxDisplacement) maxDisplacement = value;
-    else if (value < minDisplacement) minDisplacement = value;
-}
-
 VOID Instructions(INS ins, VOID *v)
 {
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) Terminate, IARG_END);
@@ -415,15 +404,6 @@ VOID Instructions(INS ins, VOID *v)
     insAddress = (insAddress/32)*32;
     
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
-
-    UINT32 operandCount = INS_OperandCount(ins);
-    for (UINT32 op = 0; op < operandCount; op++){
-        if (INS_OperandIsImmediate(ins, op)){
-            ADDRINT immediateValue = INS_OperandImmediate(ins, op);
-            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
-            INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)Operand_Size, IARG_ADDRINT, immediateValue,  IARG_END);        
-        }
-    }
 
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT32, insAddress, IARG_UINT32, ins_chunks, IARG_END);
