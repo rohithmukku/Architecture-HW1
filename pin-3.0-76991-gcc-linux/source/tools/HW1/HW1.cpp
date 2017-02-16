@@ -64,6 +64,9 @@ static UINT64 maxMemWrite = 0;
 static ADDRINT maxImmediate = 0;
 static ADDRINT minImmediate = 0;
 
+static ADDRDELTA maxDisplacement = 0;
+static ADDRDELTA minDisplacement = 0;
+
 std::ostream * out = &cerr;
 
 /* ===================================================================== */
@@ -309,8 +312,13 @@ VOID DataFootprint(VOID *addr, UINT32 refSize){
 }
 
 VOID Operand_Size(UINT32 value){
-    if(value > maxImmediate) maxImmediate = value;
-    else if(value < minImmediate) minImmediate = value;
+    if (value > maxImmediate) maxImmediate = value;
+    else if (value < minImmediate) minImmediate = value;
+}
+
+VOID Memory_Displacement_Size(UINT32 value){
+    if (value > maxDisplacement) maxDisplacement = value;
+    else if (value < minDisplacement) minDisplacement = value;
 }
 
 VOID Instructions(INS ins, VOID *v)
@@ -359,6 +367,9 @@ VOID Instructions(INS ins, VOID *v)
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
         }
+        ADDRDELTA displacementValue = INS_OperandMemoryDisplacement(ins, memOp);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)Memory_Displacement_Size, IARG_ADDRINT, (ADDRINT)displacementValue, IARG_END);
     }
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DynamicAnalysis, IARG_UINT32, memOperands, IARG_UINT32, memReadCount, IARG_UINT32, memWriteCount, IARG_END);
