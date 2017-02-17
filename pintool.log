@@ -1,0 +1,2 @@
+Pin 3.0 kit 76887
+E:  An INS_InsertIfCall() must be immediately followed by a INS_InsertThenCall()

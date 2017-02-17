@@ -45,7 +45,7 @@ std::set <ADDRINT> insAddresses;        //list of Instruction Addresses accessed
 std::set <ADDRINT> dataAddresses;       //list of Data Addresses accessed
 
 static UINT64 insArray[500];
-static UINT64 Operands[6];
+static UINT64 Operands[15];
 static UINT64 readCount[50];
 static UINT64 writeCount[50];
 static UINT64 maxInsLength = 0;
@@ -60,31 +60,24 @@ static UINT64 maxMem = 0;
 static UINT64 maxMemRead = 0;
 static UINT64 maxMemWrite = 0;
 
-static ADDRINT maxImmediate = 0;
-static ADDRINT minImmediate = 0;
+static INT32 maxImmediate = 0;
+static INT32 minImmediate = 0;
 
 static ADDRDELTA maxDisplacement = 0;
 static ADDRDELTA minDisplacement = 0;
 
+static UINT64 memAccessed = 0;
+static UINT64 MAXmemAccessed = 0;
+static UINT64 mem_op_counter = 0;
+
 std::ostream * out = &cerr;
 
-/* ===================================================================== */
-// Command line switches
-/* ===================================================================== */
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,  "pintool",
     "o", "", "specify file name for MyPinTool output");
 
 KNOB<BOOL>   KnobCount(KNOB_MODE_WRITEONCE,  "pintool",
     "count", "1", "count instructions, basic blocks and threads in the application");
 
-
-/* ===================================================================== */
-// Utilities
-/* ===================================================================== */
-
-/*!
- *  Print out help message.
- */
 INT32 Usage()
 {
     cerr << "This tool prints out the number of dynamically executed " << endl <<
@@ -94,18 +87,6 @@ INT32 Usage()
 
     return -1;
 }
-
-/* ===================================================================== */
-// Analysis routines
-/* ===================================================================== */
-
-/*!
- * Increase counter of the executed basic blocks and instructions.
- * This function is called for every basic block when it is about to be executed.
- * @param[in]   numInstInBbl    number of instructions in the basic block
- * @note use atomic operations for multi-threaded applications
- */
-
 ADDRINT Terminate(void)
 {
     return (icount >= fast_forward_count + 1000000000);
@@ -115,7 +96,7 @@ void MyExitRoutine(...) {
     OutFile <<  "===============================================" << endl;
     OutFile <<  "MyPinTool analysis results: " << endl;
     OutFile <<  "Part-A: " << endl;
-    OutFile <<  "Number of instructions: " << icount  << endl;
+    OutFile <<  "Total Number of instructions: " << icount  << endl;
     OutFile <<  "Number of instructions executed: " << executed_ins  << endl;
     OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
     OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
@@ -145,8 +126,43 @@ void MyExitRoutine(...) {
     OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
     OutFile <<  "===============================================" << endl;
     OutFile <<  "Part-D: " << endl;
-    OutFile <<  "Distribution of instruction length 1: " << insArray[0] << endl;
-    OutFile <<  "Distribution of instruction length 0: " << Operands[0] << endl;
+    OutFile <<  "1. Distribution of length instruction" << endl;
+    for (UINT64 i = 0 ; i <= maxInsLength ; i++ ){
+        OutFile <<  "Instruction length" << (i+1) << " = " <<  insArray[i] << endl;
+    }
+    OutFile <<  "2. Distribution of Number of Operands" << endl;
+    for (UINT64 i = 0 ; i <= maxOpLength + 1 ; i++ ){
+        OutFile <<  "Operands" << i << " = " <<  Operands[i] << endl;
+    }
+    OutFile <<  "3. Distribution of Register Read operations" << endl;
+    for (UINT64 i = 0 ; i <= maxRead + 1 ; i++ ){
+        OutFile <<  "Read Operations" << i << " = " <<  readCount[i] << endl;
+    }
+    OutFile <<  "4. Distribution of Register Write operations" << endl;
+    for (UINT64 i = 0 ; i <= maxWrite + 1 ; i++ ){
+        OutFile <<  "Write Operations" << i << " = " <<  writeCount[i] << endl;
+    }
+    OutFile <<  "5. Distribution of number of memory operands" << endl;
+    for (UINT64 i = 0 ; i <= maxMem + 1 ; i++ ){
+        OutFile <<  "Write Operations" << i << " = " <<  writeCount[i] << endl;
+    }
+    OutFile <<  "6. Distribution of number of memory read operands" << endl;
+    for (UINT64 i = 0 ; i <= maxMemRead + 1 ; i++ ){
+        OutFile <<  "Read Operations" << i << " = " <<  readmemSize[i] << endl;
+    }
+    OutFile <<  "7. Distribution of memory write operands" << endl;
+    for (UINT64 i = 0 ; i <= maxMemWrite + 1 ; i++ ){
+        OutFile <<  "Write Operations" << i << " = " <<  writememSize[i] << endl;
+    }
+    OutFile <<  "8. Maximum Number of memory bytes touched : "<< MAXmemAccessed << endl;
+    OutFile <<  "8. Average Number of memory bytes touched : "<< (double) (memAccessed/mem_op_counter) << endl;
+
+    OutFile <<  "9. Maximum values of the immediate field in an instruction : "<< maxImmediate << endl;
+    OutFile <<  "9. Minimum values of the immediate field in an instruction : "<< minImmediate << endl;
+
+    OutFile <<  "10. Maximum values of the displacement field : "<< maxDisplacement << endl;
+    OutFile <<  "10. Minimum values of the displacement field : "<< minDisplacement << endl;
+
     OutFile <<  "===============================================" << endl;
     OutFile <<  "Number of basic blocks: " << bblCount  << endl;
     OutFile <<  "Number of threads: " << threadCount  << endl;
@@ -161,18 +177,6 @@ VOID CountBbl(UINT32 numInstInBbl)
     insCount += numInstInBbl;
 }
 
-/* ===================================================================== */
-// Instrumentation callbacks
-/* ===================================================================== */
-
-/*!
- * Insert call to the CountBbl() analysis routine before every basic block 
- * of the trace.
- * This function is called every time a new trace is encountered.
- * @param[in]   trace    trace to be instrumented
- * @param[in]   v        value specified by the tool in the TRACE_AddInstrumentFunction
- *                       function call
- */
 VOID Trace(TRACE trace, VOID *v)
 {
     // Visit every basic block in the trace
@@ -215,7 +219,7 @@ VOID DynamicAnalysis(UINT32 memCount, UINT32 memReadCount, UINT32 memWriteCount)
     if(memCount > maxMem) maxMem = memCount;
 
     readmemSize[memReadCount]++;
-    if(memReadCount > maxMemRead) maxMemWrite = memReadCount;
+    if(memReadCount > maxMemRead) maxMemRead = memReadCount;
     
     writememSize[memWriteCount]++;
     if(memWriteCount > maxMemWrite) maxMemWrite = memWriteCount;
@@ -338,13 +342,13 @@ VOID RecordMemWrite(UINT32 c){
     latency += c*50;
 }
 
-VOID Operand_Size(UINT32 value){
-    if(value > maxImmediate) maxImmediate = value;
-    else if(value < minImmediate) minImmediate = value;
+VOID Operand_Size(INT32 value){
+    if(value >= maxImmediate) maxImmediate = value;
+    else if(value <= minImmediate) minImmediate = value;
 }
-VOID Memory_Displacement_Size(UINT32 value){
-    if (value > maxDisplacement) maxDisplacement = value;
-    else if (value < minDisplacement) minDisplacement = value;
+VOID Memory_Displacement_Size(ADDRDELTA value){
+    if (value >= maxDisplacement) maxDisplacement = value;
+    else if (value <= minDisplacement) minDisplacement = value;
 }
 
 VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
@@ -374,15 +378,20 @@ VOID DataFootprint(void *addr, UINT32 refSize){
 
 VOID Instructions(INS ins, VOID *v)
 {
+    cout << "1" << endl;
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) Terminate, IARG_END);
+    INS_InsertThenCall(ins, IPOINT_BEFORE,(AFUNPTR) MyExitRoutine, IARG_END);
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
     UINT32 memReadCount = 0;
     UINT32 memWriteCount = 0;
     UINT32 memOperands = INS_MemoryOperandCount(ins);
+    if(memOperands>0){
+        mem_op_counter++;
+    }
     UINT32 opSize = INS_OperandCount(ins);
     UINT32 readSize = INS_MaxNumRRegs(ins);
     UINT32 writeSize = INS_MaxNumWRegs(ins);
-    
+        cout << "2" << endl;
     UINT32 operandCount = INS_OperandCount(ins);
     for (UINT32 op = 0; op < operandCount; op++){
         if (INS_OperandIsImmediate(ins, op)){
@@ -390,35 +399,37 @@ VOID Instructions(INS ins, VOID *v)
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)Operand_Size, IARG_ADDRINT, immediateValue,  IARG_END);        
         }
-    }
+    }    cout << "3" << endl;
 
     UINT32 insSize = INS_Size(ins);
-    UINT32 insAddress = INS_Address(ins);
-    UINT32 insAddress_end  = insAddress + (insSize * 8);
-    UINT32 currAddr = (insAddress/32)*32;
+    UINT64 insAddress = INS_Address(ins);
+    UINT64 insAddress_end  = insAddress + (insSize * 8);
+    UINT64 currAddr = (insAddress/32)*32;
     UINT32 ins_chunks = 0;
     while(currAddr <= insAddress_end){
         ins_chunks++ ;
         currAddr = currAddr + 32;
     }
+        cout << "4" << endl;
+
     insAddress = (insAddress/32)*32;
     
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
 
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
-    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT32, insAddress, IARG_UINT32, ins_chunks, IARG_END);
+    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT64, insAddress, IARG_UINT32, ins_chunks, IARG_END);
     
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)StaticAnalysis, IARG_UINT32, insSize, IARG_UINT32, opSize, IARG_UINT32, readSize, IARG_UINT32, writeSize, IARG_END); 
-    
+    UINT32 temp = 0;
     for (UINT32 memOp = 0; memOp < memOperands; memOp++){
         UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
-
+        temp += refSize;
         UINT32 accesses;
         if (refSize%4 == 0) accesses = refSize/4;
         else accesses = refSize/4+1;
-
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
         
         if (INS_MemoryOperandIsRead(ins, memOp)){
             memReadCount++;
@@ -434,6 +445,10 @@ VOID Instructions(INS ins, VOID *v)
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)Memory_Displacement_Size, IARG_ADDRINT, (ADDRINT)displacementValue, IARG_END);
     }
+        cout << "5" << endl;
+
+    memAccessed += temp;
+    if(temp >= MAXmemAccessed) MAXmemAccessed = temp;
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DynamicAnalysis, IARG_UINT32, memOperands, IARG_UINT32, memReadCount, IARG_UINT32, memWriteCount, IARG_END);
     
@@ -499,7 +514,8 @@ VOID Instructions(INS ins, VOID *v)
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)OTHER_count, IARG_END);
     }
-    INS_InsertThenCall(ins, IPOINT_BEFORE,(AFUNPTR) MyExitRoutine, IARG_END);
+        cout << "6" << endl;
+
 }
 
 VOID Fini(INT32 code, VOID *v)
@@ -507,13 +523,6 @@ VOID Fini(INT32 code, VOID *v)
     
 }
 
-/*!
- * The main procedure of the tool.
- * This function is called when the application image is loaded but not yet started.
- * @param[in]   argc            total number of elements in the argv array
- * @param[in]   argv            array of command line arguments, 
- *                              including pin -t <toolname> -- ...
- */
 int main(int argc, char *argv[])
 {
     // Initialize PIN library. Print help message if -h(elp) is specified
@@ -551,7 +560,6 @@ int main(int argc, char *argv[])
     }
     cerr <<  "===============================================" << endl;
 
-    // Start the program, never returns
     PIN_StartProgram();
     
     return 0;

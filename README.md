@@ -497,7 +497,7 @@ Notice that I pass the fast-forward amount in billions of instructions using -f 
 If you want to test your tool for smaller binaries such as /bin/ls, make sure to compile your PIN tool
 for the native ISA i.e., if you are running on a 64-bit machine, you should compile the PIN
 tool for 64 bits. This is because /bin/ls would have been compiled for 64 bits on such a machine.
-	~/pin-3.0-76991-gcc-linux/pin -t ~/pin-3.0-76991-gcc-linux/source/tools/HW1/obj-intel64/HW1.so -o ls-stats.out -- /bin/ls
+	~/cs422-Assignment1/pin-3.0-76991-gcc-linux/pin -t ~/cs422-Assignment1/pin-3.0-76991-gcc-linux/source/tools/HW1/obj-intel64/HW1.so -o ls-stats.out -- /bin/ls
 
 9. Your PIN tool will require at least the following analysis calls: one for keeping count of
 instructions executed, one for exit condition check, one for exiting the application,
