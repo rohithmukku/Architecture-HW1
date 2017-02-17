@@ -5,6 +5,9 @@
  */
 
 #include "pin.H"
+#include <string>
+#include <sstream>
+#include <cstdint>
 #include <iostream>
 #include <fstream>
 #include <set>
@@ -75,6 +78,8 @@ KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,  "pintool",
 KNOB<BOOL>   KnobCount(KNOB_MODE_WRITEONCE,  "pintool",
     "count", "1", "count instructions, basic blocks and threads in the application");
 
+KNOB<UINT64> KnobFastForward(KNOB_MODE_WRITEONCE, "pintool", 
+    "f","0", "FastForward Instructions");
 INT32 Usage()
 {
     cerr << "This tool prints out the number of dynamically executed " << endl <<
@@ -115,9 +120,9 @@ void output(){
     OutFile <<  "CPI: " << (float)latency/icount << endl;
     OutFile <<  "===============================================" << endl;
     OutFile <<  "Part-C: " << endl;
-    OutFile <<  "Instruction Footprint: " << insAddresses.size() << endl;
-    OutFile <<  "Data Footprint: " << dataAddresses.size() << endl;
-    OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
+    OutFile <<  "Instruction Footprint: " << (insAddresses.size() * 32) << endl;
+    OutFile <<  "Data Footprint: " << (dataAddresses.size() * 32) << endl;
+    OutFile <<  "Memory Footprint: " << (insAddresses.size() + dataAddresses.size() )*32 << endl;
     OutFile <<  "===============================================" << endl;
     OutFile <<  "Part-D: " << endl;
     OutFile <<  "1. Distribution of length instruction" << endl;
@@ -361,16 +366,16 @@ VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
 }
 
 VOID DataFootprint(void *addr, UINT32 refSize){
-    UINT32 dataAddress = *((UINT32*)(&addr));
-    // UINT32 dataAddress_end  = dataAddress + (refSize * 8);
-    // UINT32 currAddr = (dataAddress/32)*32;
+    UINT32 dataAddress = *((UINT32*)(addr));
+    UINT32 dataAddress_end  = dataAddress + (refSize * 8);
+    UINT32 currAddr = (dataAddress/32)*32;
     UINT32 data_chunks = 0;
-    // while(currAddr <= dataAddress_end){
-    //     data_chunks++ ;
-    //     currAddr = currAddr + 32;
-    // }
+    while(currAddr <= dataAddress_end){
+        data_chunks++ ;
+        currAddr = currAddr + 32;
+    }
     dataAddress = (dataAddress/32)*32;
-    for(UINT32 i =0 ; i<data_chunks;i++)
+    for(UINT32 i = 0 ; i<data_chunks;i++)
     {
         dataAddresses.insert(dataAddress);
         dataAddress = dataAddress + 32;
@@ -424,7 +429,7 @@ VOID Instructions(INS ins, VOID *v)
         if (refSize%4 == 0) accesses = refSize/4;
         else accesses = refSize/4+1;
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
-        INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
         
         if (INS_MemoryOperandIsRead(ins, memOp)){
             memReadCount++;
@@ -525,12 +530,11 @@ int main(int argc, char *argv[])
     }
     
     string fileName = KnobOutputFile.Value();
-
+    fast_forward_count = KnobFastForward.Value();
     if (!fileName.empty()) { 
         //out = new std::ofstream(fileName.c_str());
         OutFile.open(KnobOutputFile.Value().c_str());
     }
-
     if (KnobCount)
     {
         INS_AddInstrumentFunction(Instructions, 0);
