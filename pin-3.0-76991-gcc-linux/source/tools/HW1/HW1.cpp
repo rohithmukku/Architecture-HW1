@@ -120,9 +120,9 @@ void output(){
     OutFile <<  "CPI: " << (float)latency/icount << endl;
     OutFile <<  "===============================================" << endl;
     OutFile <<  "Part-C: " << endl;
-    OutFile <<  "Instruction Footprint: " << (insAddresses.size() * 32) << endl;
-    OutFile <<  "Data Footprint: " << (dataAddresses.size() * 32) << endl;
-    OutFile <<  "Memory Footprint: " << (insAddresses.size() + dataAddresses.size() )*32 << endl;
+    OutFile <<  "Instruction Footprint: " << insAddresses.size()<< endl;
+    OutFile <<  "Data Footprint: " << dataAddresses.size() << endl;
+    OutFile <<  "Memory Footprint: " << insAddresses.size() + dataAddresses.size() << endl;
     OutFile <<  "===============================================" << endl;
     OutFile <<  "Part-D: " << endl;
     OutFile <<  "1. Distribution of length instruction" << endl;
@@ -143,7 +143,10 @@ void output(){
     }
     OutFile <<  "5. Distribution of number of memory operands" << endl;
     for (UINT64 i = 0 ; i <= maxMem + 1 ; i++ ){
-        OutFile <<  "Write Operations " << i << " = " <<  writeCount[i] << endl;
+        OutFile <<  "Write Operations " << i << " = " <<  memSize[i] << endl;
+    }
+    for(UINT32 i =1;i <= maxMem ; i++){
+        mem_op_counter += memSize[i];
     }
     OutFile <<  "6. Distribution of number of memory read operands" << endl;
     for (UINT64 i = 0 ; i <= maxMemRead + 1 ; i++ ){
@@ -170,7 +173,7 @@ void output(){
 }
 ADDRINT Terminate(void)
 {
-    return (icount >= fast_forward_count + 1000000000);
+    return (icount >= fast_forward_count + 1000);
 }
 void MyExitRoutine() {
     output();
@@ -185,10 +188,8 @@ VOID CountBbl(UINT32 numInstInBbl)
 
 VOID Trace(TRACE trace, VOID *v)
 {
-    // Visit every basic block in the trace
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl))
     {
-        // Insert a call to CountBbl() before every basic bloc, passing the number of instructions
         BBL_InsertCall(bbl, IPOINT_BEFORE, (AFUNPTR)CountBbl, IARG_UINT32, BBL_NumIns(bbl), IARG_END);
     }
 }
@@ -199,14 +200,14 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 }
 
 ADDRINT FastForward(void) {
-    return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
+    return (icount >= fast_forward_count && icount < fast_forward_count + 1000);
 }
 
 VOID ins_count(){
     icount++;
 }
 
-VOID StaticAnalysis(UINT32 insSize, UINT32 opSize, UINT32 readSize, UINT32 writeSize){
+VOID StaticAnalysis(UINT32 opSize, UINT32 readSize, UINT32 writeSize,UINT32 insSize,UINT32 insAddress){
     insArray[insSize-1]++;
     if(insSize > maxInsLength) maxInsLength = insSize;
     
@@ -218,6 +219,14 @@ VOID StaticAnalysis(UINT32 insSize, UINT32 opSize, UINT32 readSize, UINT32 write
     
     writeCount[writeSize]++;
     if(writeSize > maxWrite) maxWrite = writeSize;
+
+    UINT32 insAddress_end  = insAddress + insSize;
+    UINT32 currAddr = (insAddress/32)*32;
+    while(currAddr < insAddress_end)
+    {
+        insAddresses.insert(currAddr);
+        currAddr = currAddr + 32;
+    }
 }
 
 VOID DynamicAnalysis(UINT32 memCount, UINT32 memReadCount, UINT32 memWriteCount){
@@ -357,29 +366,16 @@ VOID Memory_Displacement_Size(ADDRDELTA value){
     else if (value <= minDisplacement) minDisplacement = value;
 }
 
-VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
-    for(UINT32 i =0 ; i<ins_chunks;i++)
-    {
-        insAddresses.insert(addr);
-        addr = addr + 32;
-    }
-}
-
 VOID DataFootprint(void *addr, UINT32 refSize){
-    UINT32 dataAddress = *((UINT32*)(addr));
-    UINT32 dataAddress_end  = dataAddress + (refSize * 8);
-    UINT32 currAddr = (dataAddress/32)*32;
-    UINT32 data_chunks = 0;
-    while(currAddr <= dataAddress_end){
-        data_chunks++ ;
-        currAddr = currAddr + 32;
-    }
-    dataAddress = (dataAddress/32)*32;
-    for(UINT32 i = 0 ; i<data_chunks;i++)
-    {
-        dataAddresses.insert(dataAddress);
-        dataAddress = dataAddress + 32;
-    }
+    // cout << refSize << endl;
+     UINT32 dataAddress = *((UINT32*)(addr));
+     UINT32 dataAddress_end  = dataAddress + refSize;
+     UINT32 currAddr = (dataAddress/32)*32;
+     while(currAddr < dataAddress_end)
+     {
+         dataAddresses.insert(currAddr);
+         currAddr = currAddr + 32;
+     }
 }
 
 VOID Instructions(INS ins, VOID *v)
@@ -390,9 +386,6 @@ VOID Instructions(INS ins, VOID *v)
     UINT32 memReadCount = 0;
     UINT32 memWriteCount = 0;
     UINT32 memOperands = INS_MemoryOperandCount(ins);
-    if(memOperands>0){
-        mem_op_counter++;
-    }
     UINT32 opSize = INS_OperandCount(ins);
     UINT32 readSize = INS_MaxNumRRegs(ins);
     UINT32 writeSize = INS_MaxNumWRegs(ins);
@@ -406,21 +399,9 @@ VOID Instructions(INS ins, VOID *v)
         }
     }
     UINT32 insSize = INS_Size(ins);
-    UINT64 insAddress = INS_Address(ins);
-    UINT64 insAddress_end  = insAddress + (insSize * 8);
-    UINT64 currAddr = (insAddress/32)*32;
-    UINT32 ins_chunks = 0;
-    while(currAddr <= insAddress_end){
-        ins_chunks++ ;
-        currAddr = currAddr + 32;
-    }
-    insAddress = (insAddress/32)*32;
-    
+    UINT32 insAddress = INS_Address(ins); 
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
-    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT64, insAddress, IARG_UINT32, ins_chunks, IARG_END);
-    
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
-    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)StaticAnalysis, IARG_UINT32, insSize, IARG_UINT32, opSize, IARG_UINT32, readSize, IARG_UINT32, writeSize, IARG_END); 
+    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)StaticAnalysis, IARG_UINT32, opSize, IARG_UINT32, readSize, IARG_UINT32, writeSize,IARG_UINT32,insSize,IARG_UINT32,insAddress, IARG_END); 
     UINT32 temp = 0;
     for (UINT32 memOp = 0; memOp < memOperands; memOp++){
         UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
@@ -428,10 +409,9 @@ VOID Instructions(INS ins, VOID *v)
         UINT32 accesses = 0;
         if (refSize%4 == 0) accesses = refSize/4;
         else accesses = refSize/4+1;
-        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
-        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_INST_PTR, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
-        
+        //UINT32 memorySize = 0;
         if (INS_MemoryOperandIsRead(ins, memOp)){
+            //INS_MemoryReadSize  
             memReadCount++;
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemRead, IARG_UINT32, accesses, IARG_END);
@@ -441,6 +421,9 @@ VOID Instructions(INS ins, VOID *v)
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)RecordMemWrite, IARG_UINT32, accesses, IARG_END);
         }
+
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+        INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)DataFootprint, IARG_MEMORYOP_EA, memOp, IARG_UINT32, refSize, IARG_END);
         ADDRDELTA displacementValue = INS_OperandMemoryDisplacement(ins, memOp);
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)Memory_Displacement_Size, IARG_ADDRINT, (ADDRINT)displacementValue, IARG_END);
@@ -530,7 +513,7 @@ int main(int argc, char *argv[])
     }
     
     string fileName = KnobOutputFile.Value();
-    fast_forward_count = KnobFastForward.Value();
+    fast_forward_count = KnobFastForward.Value()*1000;
     if (!fileName.empty()) { 
         //out = new std::ofstream(fileName.c_str());
         OutFile.open(KnobOutputFile.Value().c_str());
