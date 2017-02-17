@@ -12,9 +12,6 @@
 
 using namespace std;
 ofstream OutFile;
-/* ================================================================== */
-// Global variables 
-/* ================================================================== */
 
 UINT64 fast_forward_count = 0;     //fast forward count
 UINT64 insCount = 0;                    //number of dynamically executed instructions
@@ -87,11 +84,8 @@ INT32 Usage()
 
     return -1;
 }
-ADDRINT Terminate(void)
-{
-    return (icount >= fast_forward_count + 1000000000);
-}
-void MyExitRoutine(...) {
+
+void output(){
     OutFile.setf(ios::showbase);
     OutFile <<  "===============================================" << endl;
     OutFile <<  "MyPinTool analysis results: " << endl;
@@ -128,31 +122,31 @@ void MyExitRoutine(...) {
     OutFile <<  "Part-D: " << endl;
     OutFile <<  "1. Distribution of length instruction" << endl;
     for (UINT64 i = 0 ; i <= maxInsLength ; i++ ){
-        OutFile <<  "Instruction length" << (i+1) << " = " <<  insArray[i] << endl;
+        OutFile <<  "Instruction length " << (i+1) << " = " <<  insArray[i] << endl;
     }
     OutFile <<  "2. Distribution of Number of Operands" << endl;
     for (UINT64 i = 0 ; i <= maxOpLength + 1 ; i++ ){
-        OutFile <<  "Operands" << i << " = " <<  Operands[i] << endl;
+        OutFile <<  "Operands " << i << " = " <<  Operands[i] << endl;
     }
     OutFile <<  "3. Distribution of Register Read operations" << endl;
     for (UINT64 i = 0 ; i <= maxRead + 1 ; i++ ){
-        OutFile <<  "Read Operations" << i << " = " <<  readCount[i] << endl;
+        OutFile <<  "Read Operations " << i << " = " <<  readCount[i] << endl;
     }
     OutFile <<  "4. Distribution of Register Write operations" << endl;
     for (UINT64 i = 0 ; i <= maxWrite + 1 ; i++ ){
-        OutFile <<  "Write Operations" << i << " = " <<  writeCount[i] << endl;
+        OutFile <<  "Write Operations " << i << " = " <<  writeCount[i] << endl;
     }
     OutFile <<  "5. Distribution of number of memory operands" << endl;
     for (UINT64 i = 0 ; i <= maxMem + 1 ; i++ ){
-        OutFile <<  "Write Operations" << i << " = " <<  writeCount[i] << endl;
+        OutFile <<  "Write Operations " << i << " = " <<  writeCount[i] << endl;
     }
     OutFile <<  "6. Distribution of number of memory read operands" << endl;
     for (UINT64 i = 0 ; i <= maxMemRead + 1 ; i++ ){
-        OutFile <<  "Read Operations" << i << " = " <<  readmemSize[i] << endl;
+        OutFile <<  "Read Operations " << i << " = " <<  readmemSize[i] << endl;
     }
     OutFile <<  "7. Distribution of memory write operands" << endl;
     for (UINT64 i = 0 ; i <= maxMemWrite + 1 ; i++ ){
-        OutFile <<  "Write Operations" << i << " = " <<  writememSize[i] << endl;
+        OutFile <<  "Write Operations " << i << " = " <<  writememSize[i] << endl;
     }
     OutFile <<  "8. Maximum Number of memory bytes touched : "<< MAXmemAccessed << endl;
     OutFile <<  "8. Average Number of memory bytes touched : "<< (double) (memAccessed/mem_op_counter) << endl;
@@ -168,6 +162,13 @@ void MyExitRoutine(...) {
     OutFile <<  "Number of threads: " << threadCount  << endl;
     OutFile <<  "===============================================" << endl;
     OutFile.close();
+}
+ADDRINT Terminate(void)
+{
+    return (icount >= fast_forward_count + 1000000000);
+}
+void MyExitRoutine() {
+    output();
     exit(0);
 }
 
@@ -361,13 +362,13 @@ VOID InstructionFootprint(UINT32 addr, UINT32 ins_chunks){
 
 VOID DataFootprint(void *addr, UINT32 refSize){
     UINT32 dataAddress = *((UINT32*)(&addr));
-    UINT32 dataAddress_end  = dataAddress + (refSize * 8);
-    UINT32 currAddr = (dataAddress/32)*32;
+    // UINT32 dataAddress_end  = dataAddress + (refSize * 8);
+    // UINT32 currAddr = (dataAddress/32)*32;
     UINT32 data_chunks = 0;
-    while(currAddr <= dataAddress_end){
-        data_chunks++ ;
-        currAddr = currAddr + 32;
-    }
+    // while(currAddr <= dataAddress_end){
+    //     data_chunks++ ;
+    //     currAddr = currAddr + 32;
+    // }
     dataAddress = (dataAddress/32)*32;
     for(UINT32 i =0 ; i<data_chunks;i++)
     {
@@ -378,7 +379,6 @@ VOID DataFootprint(void *addr, UINT32 refSize){
 
 VOID Instructions(INS ins, VOID *v)
 {
-    cout << "1" << endl;
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) Terminate, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE,(AFUNPTR) MyExitRoutine, IARG_END);
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
@@ -391,7 +391,7 @@ VOID Instructions(INS ins, VOID *v)
     UINT32 opSize = INS_OperandCount(ins);
     UINT32 readSize = INS_MaxNumRRegs(ins);
     UINT32 writeSize = INS_MaxNumWRegs(ins);
-        cout << "2" << endl;
+    
     UINT32 operandCount = INS_OperandCount(ins);
     for (UINT32 op = 0; op < operandCount; op++){
         if (INS_OperandIsImmediate(ins, op)){
@@ -399,8 +399,7 @@ VOID Instructions(INS ins, VOID *v)
             INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
             INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)Operand_Size, IARG_ADDRINT, immediateValue,  IARG_END);        
         }
-    }    cout << "3" << endl;
-
+    }
     UINT32 insSize = INS_Size(ins);
     UINT64 insAddress = INS_Address(ins);
     UINT64 insAddress_end  = insAddress + (insSize * 8);
@@ -410,12 +409,8 @@ VOID Instructions(INS ins, VOID *v)
         ins_chunks++ ;
         currAddr = currAddr + 32;
     }
-        cout << "4" << endl;
-
     insAddress = (insAddress/32)*32;
     
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
-
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)InstructionFootprint, IARG_UINT64, insAddress, IARG_UINT32, ins_chunks, IARG_END);
     
@@ -425,7 +420,7 @@ VOID Instructions(INS ins, VOID *v)
     for (UINT32 memOp = 0; memOp < memOperands; memOp++){
         UINT32 refSize = INS_MemoryOperandSize(ins, memOp);
         temp += refSize;
-        UINT32 accesses;
+        UINT32 accesses = 0;
         if (refSize%4 == 0) accesses = refSize/4;
         else accesses = refSize/4+1;
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
@@ -445,8 +440,6 @@ VOID Instructions(INS ins, VOID *v)
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)Memory_Displacement_Size, IARG_ADDRINT, (ADDRINT)displacementValue, IARG_END);
     }
-        cout << "5" << endl;
-
     memAccessed += temp;
     if(temp >= MAXmemAccessed) MAXmemAccessed = temp;
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
@@ -514,13 +507,12 @@ VOID Instructions(INS ins, VOID *v)
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)OTHER_count, IARG_END);
     }
-        cout << "6" << endl;
-
 }
+
 
 VOID Fini(INT32 code, VOID *v)
 {
-    
+    output();
 }
 
 int main(int argc, char *argv[])

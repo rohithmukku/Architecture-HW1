@@ -1,0 +1,91 @@
+===============================================
+MyPinTool analysis results: 
+Part-A: 
+Total Number of instructions: 145936
+Number of instructions executed: 224862
+Number of NOP Instructions: 145
+Number of Direct Call Instructions: 643
+Number of Indirect Call Instructions: 54
+Number of Return Call Instructions: 0
+Number of Unconditional Branch Instructions: 2500
+Number of Conditional Branch Instructions: 27314
+Number of Logical Instructions: 18012
+Number of Rotate and Shift Instructions: 2779
+Number of Flag Instructions: 0
+Number of Vector Instructions: 0
+Number of Conditional move Instructions: 23
+Number of MMX and SSE Instructions: 889
+Number of System Call Instructions: 25
+Number of Floating point Instructions: 0
+Number of Other Instructions: 93426
+Number of Read Operations: 57703
+Number of Write Operations: 21349
+===============================================
+Part-B: 
+Number of Cycles executed: 4098410
+CPI: 28.0836
+===============================================
+Part-C: 
+Instruction Footprint: 1784
+Data Footprint: 0
+Memory Footprint: 1784
+===============================================
+Part-D: 
+1. Distribution of length instruction
+Instruction length1 = 2861
+Instruction length2 = 31276
+Instruction length3 = 40013
+Instruction length4 = 41714
+Instruction length5 = 10386
+Instruction length6 = 10216
+Instruction length7 = 6419
+Instruction length8 = 2262
+Instruction length9 = 427
+Instruction length10 = 67
+Instruction length11 = 295
+Instruction length12 = 0
+2. Distribution of Number of Operands
+Operands0 = 145
+Operands1 = 7
+Operands2 = 56437
+Operands3 = 82462
+Operands4 = 5877
+Operands5 = 1008
+Operands6 = 0
+3. Distribution of Register Read operations
+Read Operations0 = 1032
+Read Operations1 = 71528
+Read Operations2 = 72715
+Read Operations3 = 348
+Read Operations4 = 313
+Read Operations5 = 0
+4. Distribution of Register Write operations
+Write Operations0 = 7108
+Write Operations1 = 107263
+Write Operations2 = 31447
+Write Operations3 = 98
+Write Operations4 = 20
+Write Operations5 = 0
+5. Distribution of number of memory operands
+Write Operations0 = 7108
+Write Operations1 = 107263
+Write Operations2 = 31447
+Write Operations3 = 98
+6. Distribution of number of memory read operands
+Read Operations0 = 109353
+Read Operations1 = 36457
+Read Operations2 = 0
+7. Distribution of memory write operands
+Write Operations0 = 134914
+Write Operations1 = 10896
+Write Operations2 = 0
+8. Maximum Number of memory bytes touched : 32
+8. Average Number of memory bytes touched : 7
+9. Maximum values of the immediate field in an instruction : 2147483647
+9. Minimum values of the immediate field in an instruction : -2147482664
+10. Maximum values of the displacement field : 3659835
+10. Minimum values of the displacement field : -11829
+===============================================
+Number of basic blocks: 30867
+Number of threads: 1
+===============================================
