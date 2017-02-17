@@ -200,135 +200,120 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 }
 
 ADDRINT FastForward(void) {
-    // return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
-    return (icount >= fast_forward_count && icount < fast_forward_count + 1000);
+    return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
+    // return (icount >= fast_forward_count && icount < fast_forward_count + 1000);
 }
 ADDRINT Terminate(void)
 {
-    // return (icount >= fast_forward_count + 1000000000);
-    return (icount >= fast_forward_count + 1000);
+    return (icount >= fast_forward_count + 1000000000);
+    // return (icount >= fast_forward_count + 1000);
 }
 
 VOID ins_count(){
     icount++;
 }
 
-
+VOID actual_ins_count(){
+    executed_ins++;
+}
 
 VOID NOP_count()
 {
     nopcount++;
     latency++;
-    executed_ins++;
 }
 
 VOID DIRECT_CALL_count()
 {
     direct_call_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID INDIRECT_CALL_count()
 {
     indirect_call_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID RETURN_count()
 {
     return_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID UNCONDITIONAL_count()
 {
     unconditional_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID CONDITIONAL_count()
 {
     conditional_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID LOGICAL_count()
 {
     logical_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID ROTATE_SHIFT_count()
 {
     rotate_shift_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID FLAG_CALL_count()
 {
     flag_call_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID VECTOR_count()
 {
     vector_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID MOVES_count()
 {
     moves_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID MMX_SSE_count()
 {
     mmx_sse_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID SYSTEM_CALL_count()
 {
     system_call_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID FP_count()
 {
     fp_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID OTHER_count()
 {
     other_count++;
     latency++;
-    executed_ins++;
 }
 
 VOID RecordMemRead(UINT32 c){
     read_count += c;
-    executed_ins += c;
     latency += c*50;
 }
 
 VOID RecordMemWrite(UINT32 c){
     write_count += c;
-    executed_ins += c;
     latency += c*50;
 }
 
@@ -393,6 +378,8 @@ VOID Instructions(INS ins, VOID *v)
     INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR) Terminate, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE,(AFUNPTR) MyExitRoutine, IARG_END);
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_count, IARG_END);
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)FastForward, IARG_END);
+    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)actual_ins_count, IARG_END);
     UINT32 memReadCount = 0;
     UINT32 memWriteCount = 0;
     UINT32 memOperands = INS_MemoryOperandCount(ins);
