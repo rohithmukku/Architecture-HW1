@@ -14,7 +14,6 @@
 #include <vector>
 
 using namespace std;
-ofstream OutFile;
 
 UINT64 fast_forward_count = 0;     //fast forward count
 UINT64 insCount = 0;                    //number of dynamically executed instructions
@@ -91,87 +90,85 @@ INT32 Usage()
 }
 
 void output(){
-    OutFile.setf(ios::showbase);
-    OutFile <<  "============CS422: Assignment 1================" << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "MyPinTool analysis results: " << endl;
-    OutFile <<  "Part-A: " << endl;
-    OutFile <<  "Total Number of instructions: " << icount  << endl;
-    OutFile <<  "Number of instructions executed: " << executed_ins  << endl;
-    OutFile <<  "Number of Load Operations: " << read_count << endl;
-    OutFile <<  "Number of Store Operations: " << write_count << endl;
-    OutFile <<  "Number of NOP Instructions: " << nopcount << endl;
-    OutFile <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
-    OutFile <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
-    OutFile <<  "Number of Return Call Instructions: " << return_count << endl;
-    OutFile <<  "Number of Unconditional Branch Instructions: " << unconditional_count << endl;
-    OutFile <<  "Number of Conditional Branch Instructions: " << conditional_count << endl;
-    OutFile <<  "Number of Logical Instructions: " << logical_count << endl;
-    OutFile <<  "Number of Rotate and Shift Instructions: " << rotate_shift_count << endl;
-    OutFile <<  "Number of Flag Instructions: " << flag_call_count << endl;
-    OutFile <<  "Number of Vector Instructions: " << vector_count << endl;
-    OutFile <<  "Number of Conditional move Instructions: " << moves_count << endl;
-    OutFile <<  "Number of MMX and SSE Instructions: " << mmx_sse_count << endl;
-    OutFile <<  "Number of System Call Instructions: " << system_call_count << endl;
-    OutFile <<  "Number of Floating point Instructions: " << fp_count << endl;
-    OutFile <<  "Number of Other Instructions: " << other_count << endl;
+    *out <<  "============CS422: Assignment 1================" << endl;
+    *out <<  "===============================================" << endl;
+    *out <<  "MyPinTool analysis results: " << endl;
+    *out <<  "Part-A: " << endl;
+    *out <<  "Total Number of instructions: " << icount  << endl;
+    *out <<  "Number of instructions executed: " << executed_ins  << endl;
+    *out <<  "Number of Load Operations: " << read_count << endl;
+    *out <<  "Number of Store Operations: " << write_count << endl;
+    *out <<  "Number of NOP Instructions: " << nopcount << endl;
+    *out <<  "Number of Direct Call Instructions: " << direct_call_count << endl;
+    *out <<  "Number of Indirect Call Instructions: " << indirect_call_count << endl;
+    *out <<  "Number of Return Call Instructions: " << return_count << endl;
+    *out <<  "Number of Unconditional Branch Instructions: " << unconditional_count << endl;
+    *out <<  "Number of Conditional Branch Instructions: " << conditional_count << endl;
+    *out <<  "Number of Logical Instructions: " << logical_count << endl;
+    *out <<  "Number of Rotate and Shift Instructions: " << rotate_shift_count << endl;
+    *out <<  "Number of Flag Instructions: " << flag_call_count << endl;
+    *out <<  "Number of Vector Instructions: " << vector_count << endl;
+    *out <<  "Number of Conditional move Instructions: " << moves_count << endl;
+    *out <<  "Number of MMX and SSE Instructions: " << mmx_sse_count << endl;
+    *out <<  "Number of System Call Instructions: " << system_call_count << endl;
+    *out <<  "Number of Floating point Instructions: " << fp_count << endl;
+    *out <<  "Number of Other Instructions: " << other_count << endl;
     
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Part-B: " << endl;
-    OutFile <<  "Number of Cycles executed: " << latency << endl;
-    OutFile <<  "CPI: " << (float)latency/executed_ins << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Part-C: " << endl;
-    OutFile <<  "Instruction Footprint: " << (insAddresses.size())*32 << endl;
-    OutFile <<  "Data Footprint: " << (dataAddresses.size())*32 << endl;
-    OutFile <<  "Memory Footprint: " << (insAddresses.size() + dataAddresses.size())*32 << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Part-D: " << endl;
-    OutFile <<  "1. Distribution of length instruction" << endl;
+    *out <<  "===============================================" << endl;
+    *out <<  "Part-B: " << endl;
+    *out <<  "Number of Cycles executed: " << latency << endl;
+    *out <<  "CPI: " << (float)latency/executed_ins << endl;
+    *out <<  "===============================================" << endl;
+    *out <<  "Part-C: " << endl;
+    *out <<  "Instruction Footprint: " << (insAddresses.size())*32 << endl;
+    *out <<  "Data Footprint: " << (dataAddresses.size())*32 << endl;
+    *out <<  "Memory Footprint: " << (insAddresses.size() + dataAddresses.size())*32 << endl;
+    *out <<  "===============================================" << endl;
+    *out <<  "Part-D: " << endl;
+    *out <<  "1. Distribution of length instruction" << endl;
     for (UINT64 i = 0 ; i <= maxInsLength ; i++ ){
-        OutFile <<  "Instruction length " << (i+1) << " = " <<  insArray[i] << endl;
+        *out <<  "Instruction length " << (i+1) << " = " <<  insArray[i] << endl;
     }
-    OutFile <<  "2. Distribution of Number of Operands" << endl;
+    *out <<  "2. Distribution of Number of Operands" << endl;
     for (UINT64 i = 0 ; i <= maxOpLength + 1 ; i++ ){
-        OutFile <<  "Operands " << i << " = " <<  Operands[i] << endl;
+        *out <<  "Operands " << i << " = " <<  Operands[i] << endl;
     }
-    OutFile <<  "3. Distribution of Register Read operations" << endl;
+    *out <<  "3. Distribution of Register Read operations" << endl;
     for (UINT64 i = 0 ; i <= maxRead + 1 ; i++ ){
-        OutFile <<  "Read Operations " << i << " = " <<  readCount[i] << endl;
+        *out <<  "Read Operations " << i << " = " <<  readCount[i] << endl;
     }
-    OutFile <<  "4. Distribution of Register Write operations" << endl;
+    *out <<  "4. Distribution of Register Write operations" << endl;
     for (UINT64 i = 0 ; i <= maxWrite + 1 ; i++ ){
-        OutFile <<  "Write Operations " << i << " = " <<  writeCount[i] << endl;
+        *out <<  "Write Operations " << i << " = " <<  writeCount[i] << endl;
     }
-    OutFile <<  "5. Distribution of number of memory operands" << endl;
+    *out <<  "5. Distribution of number of memory operands" << endl;
     for (UINT64 i = 0 ; i <= maxMem + 1 ; i++ ){
-        OutFile <<  "Write Operations " << i << " = " <<  memSize[i] << endl;
+        *out <<  "Write Operations " << i << " = " <<  memSize[i] << endl;
     }
     for(UINT32 i =1;i <= maxMem ; i++){
         mem_op_counter += memSize[i];
     }
-    OutFile <<  "6. Distribution of number of memory read operands" << endl;
+    *out <<  "6. Distribution of number of memory read operands" << endl;
     for (UINT64 i = 0 ; i <= maxMemRead + 1 ; i++ ){
-        OutFile <<  "Read Operations " << i << " = " <<  readmemSize[i] << endl;
+        *out <<  "Read Operations " << i << " = " <<  readmemSize[i] << endl;
     }
-    OutFile <<  "7. Distribution of number memory write operands" << endl;
+    *out <<  "7. Distribution of number memory write operands" << endl;
     for (UINT64 i = 0 ; i <= maxMemWrite + 1 ; i++ ){
-        OutFile <<  "Write Operations " << i << " = " <<  writememSize[i] << endl;
+        *out <<  "Write Operations " << i << " = " <<  writememSize[i] << endl;
     }
-    OutFile <<  "8. Maximum Number of memory bytes touched : "<< MAXmemAccessed << endl;
-    OutFile <<  "8. Average Number of memory bytes touched : "<< (double) (memAccessed/mem_op_counter) << endl;
+    *out <<  "8. Maximum Number of memory bytes touched : "<< MAXmemAccessed << endl;
+    *out <<  "8. Average Number of memory bytes touched : "<< (double) (memAccessed/mem_op_counter) << endl;
 
-    OutFile <<  "9. Maximum values of the immediate field in an instruction : "<< maxImmediate << endl;
-    OutFile <<  "9. Minimum values of the immediate field in an instruction : "<< minImmediate << endl;
+    *out <<  "9. Maximum values of the immediate field in an instruction : "<< maxImmediate << endl;
+    *out <<  "9. Minimum values of the immediate field in an instruction : "<< minImmediate << endl;
 
-    OutFile <<  "10. Maximum values of the displacement field : "<< maxDisplacement << endl;
-    OutFile <<  "10. Minimum values of the displacement field : "<< minDisplacement << endl;
+    *out <<  "10. Maximum values of the displacement field : "<< maxDisplacement << endl;
+    *out <<  "10. Minimum values of the displacement field : "<< minDisplacement << endl;
 
-    OutFile <<  "===============================================" << endl;
-    OutFile <<  "Number of basic blocks: " << bblCount  << endl;
-    OutFile <<  "Number of threads: " << threadCount  << endl;
-    OutFile <<  "===============================================" << endl;
-    OutFile.close();
+    *out <<  "===============================================" << endl;
+    *out <<  "Number of basic blocks: " << bblCount  << endl;
+    *out <<  "Number of threads: " << threadCount  << endl;
+    *out <<  "===============================================" << endl;
 
 }
 
@@ -200,13 +197,13 @@ VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 }
 
 ADDRINT FastForward(void) {
-    return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
-    // return (icount >= fast_forward_count && icount < fast_forward_count + 1000);
+    //return (icount >= fast_forward_count && icount < fast_forward_count + 1000000000);
+     return (icount >= fast_forward_count && icount < fast_forward_count + 1000);
 }
 ADDRINT Terminate(void)
 {
-    return (icount >= fast_forward_count + 1000000000);
-    // return (icount >= fast_forward_count + 1000);
+    // return (icount >= fast_forward_count + 1000000000);
+     return (icount >= fast_forward_count + 1000);
 }
 
 VOID ins_count(){
@@ -493,8 +490,8 @@ VOID Instructions(INS ins, VOID *v)
 
 
 VOID Fini(INT32 code, VOID *v)
-{
-    output();
+{    output();
+
 }
 
 int main(int argc, char *argv[])
@@ -509,8 +506,7 @@ int main(int argc, char *argv[])
     string fileName = KnobOutputFile.Value();
     fast_forward_count = KnobFastForward.Value();
     if (!fileName.empty()) { 
-        //out = new std::ofstream(fileName.c_str());
-        OutFile.open(KnobOutputFile.Value().c_str());
+        out = new std::ofstream(fileName.c_str());
     }
     if (KnobCount)
     {
